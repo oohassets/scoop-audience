@@ -209,6 +209,8 @@ let detectionTimer = null;
 let firebaseConnected = false;
 let firebaseTimer = null;   // <-- ADD THIS
 
+  let screenName = localStorage.getItem('scoop-screen-name') || '';
+
 let analytics = {
   total:0,
   male:0,
@@ -505,22 +507,19 @@ if(!modelsReady){
   el('kioskBtn').addEventListener('click', ()=> el('app').classList.add('kiosk'));
   el('settingsBtn').addEventListener('click', ()=> alert('Settings: Edit in browser DevTools or add Settings modal'));
   
-  document.addEventListener('keydown', e=>{
-    if(e.key === 'Escape') el('app').classList.remove('kiosk');
-document.addEventListener('keydown', e=>{
-   if(e.key === 'Escape'){
-      el('app').classList.remove('kiosk');
-   }
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        el('app').classList.remove('kiosk');
+    }
 });
 
+applyModeUI('idle');
+applyStageSource('idle');
 
-  applyModeUI('idle');
-  applyStageSource('idle');
-  
 if(screenName){
     screenNameLabel.textContent = screenName;
-
-    initFirebase();   // <-- ADD THIS
+    initFirebase();
     loadModels();
 }
 else{
