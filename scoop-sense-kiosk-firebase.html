@@ -160,9 +160,14 @@ import { getDatabase, ref, set, update, onValue, off } from "https://www.gstatic
 /* ════════════════════════════════════════ */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyA4amK6CZuiU3_Nfaw4OLD17BqWrX0VYAA",           // Copy from Firebase Console → Project Settings
-  projectId: "scoopassets",     // Copy from Firebase Console → Project Settings
-  databaseURL: "https://scoopassets-default-rtdb.firebaseio.com/"  // Copy from Realtime Database
+  apiKey: "AIzaSyA4amK6CZuiU3_Nfaw4OLD17BqWrX0VYAA",
+  authDomain: "scoopassets.firebaseapp.com",
+  projectId: "scoopassets",
+  storageBucket: "scoopassets.firebasestorage.app",
+  messagingSenderId: "989559041483",
+  appId: "1:989559041483:web:0feba5f279189f03791a4",
+  measurementId: "G-6HYVW2NG5K",
+  databaseURL: "https://scoopassets-default-rtdb.firebaseio.com/"
 };
 
 /* ════════════════════════════════════════ */
@@ -203,6 +208,18 @@ const database = getDatabase(app);
   let firebaseConnected = false;
   
   let analytics = { total: 0, male: 0, female: 0, children: 0, startTime: Date.now() };
+
+  let firebaseTimer = null;
+
+function initFirebase(){
+
+   if(firebaseTimer){
+      clearInterval(firebaseTimer);
+   }
+
+   firebaseTimer =
+      setInterval(uploadToFirebase,5000);
+}
 
   /* DOM */
   const el = id => document.getElementById(id);
@@ -267,6 +284,12 @@ const database = getDatabase(app);
         stageVideo.style.opacity = '1';
       }).catch(()=>{ stageVideo.classList.remove('fading'); });
     }, 220);
+    console.log("Current Mode:", mode);
+console.log("Video URL:", src);
+
+stageVideo.onerror = (e)=>{
+   console.error("Video Load Failed:", src);
+};
   }
 
   function setMode(mode){
@@ -470,6 +493,9 @@ const database = getDatabase(app);
   
   document.addEventListener('keydown', e=>{
     if(e.key === 'Escape') el('app').classList.remove('kiosk');
+    onValue(contentRef,(snapshot)=>{
+   console.log("Firebase Data:", snapshot.val());
+});
   });
 
   applyModeUI('idle');
