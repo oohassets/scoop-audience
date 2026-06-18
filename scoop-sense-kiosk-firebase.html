@@ -199,27 +199,24 @@ const database = getDatabase(app);
 
   /* STATE */
   const sources = { idle:null, kids:null, adult:null, family:null };
-  let currentMode = 'idle';
-  let pendingMode = null, pendingSince = 0;
-  let zeroFaceStart = null;
-  let modelsReady = false;
-  let detectionTimer = null;
-  let screenName = localStorage.getItem('scoop-screen-name') || '';
-  let firebaseConnected = false;
-  
-  let analytics = { total: 0, male: 0, female: 0, children: 0, startTime: Date.now() };
+let currentMode = 'idle';
+let pendingMode = null;
+let pendingSince = 0;
+let zeroFaceStart = null;
+let modelsReady = false;
+let detectionTimer = null;
+
+let firebaseConnected = false;
+let firebaseTimer = null;   // <-- ADD THIS
+
+let analytics = {
+  total:0,
+  male:0,
+  female:0,
+  children:0
+};
 
 
-
-function initFirebase(){
-
-   if(firebaseTimer){
-      clearInterval(firebaseTimer);
-   }
-
-   firebaseTimer =
-      setInterval(uploadToFirebase,5000);
-}
 
   /* DOM */
   const el = id => document.getElementById(id);
@@ -440,39 +437,47 @@ stageVideo.onerror = (e)=>{
     }
   }
 
-  function initFirebase(){
-    if(!screenName) return;
-    try{
-      const screenRef = ref(database, `screens/${screenName}`);
-      set(screenRef, {
-        name: screenName,
-        status: 'online',
-        currentMode: currentMode,
-        total: 0, male: 0, female: 0, children: 0,
-        lastSeen: Date.now()
-      }).then(()=>{
-        firebaseConnected = true;
-        firebasePill.textContent = 'connected';
-        firebasePill.className = 'pill firebase ready';
-        firebaseStatus.textContent = 'Connected ✓';
-        setStatus('Firebase synced · Live scanning', 'firebase');
-        listenToContent();
-        if(firebaseTimer){
-   clearInterval(firebaseTimer);
+function initFirebase(){
+
+  if(!screenName) return;
+
+  const screenRef = ref(database, `screens/${screenName}`);
+
+  set(screenRef,{
+      name:screenName,
+      status:'online',
+      currentMode:currentMode,
+      total:0,
+      male:0,
+      female:0,
+      children:0,
+      lastSeen:Date.now()
+  })
+  .then(()=>{
+
+      firebaseConnected = true;
+
+      firebasePill.textContent = 'connected';
+      firebasePill.className = 'pill firebase ready';
+
+      firebaseStatus.textContent = 'Connected ✓';
+
+      listenToContent();
+
+      if(firebaseTimer){
+          clearInterval(firebaseTimer);
+      }
+
+      firebaseTimer = setInterval(
+          uploadToFirebase,
+          5000
+      );
+
+  })
+  .catch(err=>{
+      console.error('Firebase init failed:', err);
+  });
 }
-
-firebaseTimer = setInterval(uploadToFirebase, 5000);
-      }).catch(err=>{
-        console.error('Firebase init failed:', err);
-        firebasePill.textContent = 'error';
-        firebasePill.className = 'pill err';
-        firebaseStatus.textContent = 'Connection failed';
-      });
-    }catch(e){
-      console.error('Firebase error:', e);
-    }
-  }
-
   /* ═══════════════════════════════════════════════════════════ */
 
   /* Screen name modal */
