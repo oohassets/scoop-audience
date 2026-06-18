@@ -425,19 +425,37 @@ stageVideo.onerror = (e)=>{
   function listenToContent(){
     try{
       const contentRef = ref(database, 'content');
-      onValue(contentRef, (snapshot)=>{
-        const data = snapshot.val() || {};
-        console.log("Firebase Data:", data);
-        sources.family = data.family || null;
-        sources.kids = data.kids || null;
-        sources.adult = data.adult || null;
-        sources.idle = data.idle || null;
-        applyStageSource(currentMode);
-      });
+        onValue(contentRef, (snapshot) => {
+            const data = snapshot.val()?.videos || {};
+        
+            console.log("CONTENT DATA:", data);
+        
+            sources.family = data.family || null;
+            sources.kids = data.kids || null;
+            sources.adult = data.adult || null;
+            sources.idle = data.idle || null;
+        
+            console.log("SOURCES:", sources);
+        
+            stageVideo.pause();
+            stageVideo.removeAttribute("src");
+            stageVideo.load();
+            
+            applyStageSource(currentMode);
+        });
     }catch(e){
       console.error('Firebase listen failed:', e);
     }
   }
+
+  function setMode(mode){
+    console.log("MODE CHANGED:", mode);
+
+    currentMode = mode;
+    applyModeUI(mode);
+    applyStageSource(mode);
+    uploadToFirebase();
+}
 
 function initFirebase(){
 
