@@ -209,7 +209,7 @@ const database = getDatabase(app);
   
   let analytics = { total: 0, male: 0, female: 0, children: 0, startTime: Date.now() };
 
-  let firebaseTimer = null;
+
 
 function initFirebase(){
 
@@ -428,6 +428,7 @@ stageVideo.onerror = (e)=>{
       const contentRef = ref(database, 'content');
       onValue(contentRef, (snapshot)=>{
         const data = snapshot.val() || {};
+        console.log("Firebase Data:", data);
         sources.family = data.family || null;
         sources.kids = data.kids || null;
         sources.adult = data.adult || null;
@@ -456,7 +457,11 @@ stageVideo.onerror = (e)=>{
         firebaseStatus.textContent = 'Connected ✓';
         setStatus('Firebase synced · Live scanning', 'firebase');
         listenToContent();
-        setInterval(uploadToFirebase, 5000);
+        if(firebaseTimer){
+   clearInterval(firebaseTimer);
+}
+
+firebaseTimer = setInterval(uploadToFirebase, 5000);
       }).catch(err=>{
         console.error('Firebase init failed:', err);
         firebasePill.textContent = 'error';
@@ -483,6 +488,10 @@ stageVideo.onerror = (e)=>{
       screenNameLabel.textContent = screenName;
       el('screenNameModal').classList.remove('open');
       initFirebase();
+
+if(!modelsReady){
+   loadModels();
+}
     }
   });
 
@@ -493,21 +502,26 @@ stageVideo.onerror = (e)=>{
   
   document.addEventListener('keydown', e=>{
     if(e.key === 'Escape') el('app').classList.remove('kiosk');
-    onValue(contentRef,(snapshot)=>{
-   console.log("Firebase Data:", snapshot.val());
+document.addEventListener('keydown', e=>{
+   if(e.key === 'Escape'){
+      el('app').classList.remove('kiosk');
+   }
 });
   });
 
   applyModeUI('idle');
   applyStageSource('idle');
   
-  if(screenName){
+if(screenName){
     screenNameLabel.textContent = screenName;
+
+    initFirebase();
     loadModels();
-  } else {
+}
+else{
     el('screenNameModal').classList.add('open');
     el('screenNameInput').focus();
-  }
+}
 
 })();
 </script>
