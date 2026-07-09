@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scoop Audience — Kiosk</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0A0D12">
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="apple-touch-icon" href="../icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<style>
+  :root{
+    --bg:#0A0D12;
+    --surface:#12161D;
+    --surface-2:#171C25;
+    --border:#232A35;
+    --border-hi:#34404F;
+    --text-hi:#ECF1F6;
+    --text-mid:#A6B0BF;
+    --text-dim:#646F80;
+    --accent:#4FE6C7;
+    --accent-dim:rgba(79,230,199,0.12);
+    --online:#4FE6C7;
+    --offline:#FF5C72;
+    --warn:#FFB648;
+    --male:#5C8DF6;
+    --female:#C47EF5;
+    --child:#FFB648;
+    --mode-idle:#646F80;
+    --mode-kids:#FFB648;
+    --mode-adult:#5C8DF6;
+    --mode-family:#C47EF5;
+    --font-display:'Space Grotesk',sans-serif;
+    --font-mono:'IBM Plex Mono',monospace;
+    --font-body:'Inter',sans-serif;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;background:var(--bg);color:var(--text-hi);font-family:var(--font-body);overflow:hidden;}
+  button{font-family:var(--font-body);cursor:pointer;}
+
+  #app{height:100vh;display:flex;flex-direction:column;}
+
+  .topbar{
+    flex:none;height:54px;display:flex;align-items:center;gap:14px;padding:0 20px;
+    border-bottom:1px solid var(--border);background:rgba(18,22,29,0.75);backdrop-filter:blur(8px);
+  }
+  .brand{font-family:var(--font-display);font-weight:700;font-size:14px;letter-spacing:.07em;display:flex;align-items:center;gap:9px;}
+  .brand-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);}
+  .brand-sep{color:var(--border-hi);font-weight:400;margin:0 2px;}
+  .brand-sub{color:var(--text-mid);font-weight:500;letter-spacing:.04em;}
+
+  .conn-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;color:var(--text-dim);padding:3px 10px;border-radius:20px;border:1px solid var(--border-hi);}
+  .conn-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--text-dim);}
+  .conn-badge.live{color:var(--online);border-color:rgba(79,230,199,.3);}
+  .conn-badge.live .dot{background:var(--online);animation:pulse-dot 1.8s ease infinite;}
+  .conn-badge.offline{color:var(--offline);border-color:rgba(255,92,114,.3);}
+  .conn-badge.offline .dot{background:var(--offline);}
+  @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(1.4);}}
+
+  .mode-badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-display);font-size:12px;font-weight:600;letter-spacing:.05em;padding:4px 12px;border-radius:20px;border:1px solid var(--border-hi);color:var(--text-mid);}
+  .mode-dot{width:8px;height:8px;border-radius:50%;background:var(--mode-idle);transition:background .2s;}
+  .mode-badge.pulse{animation:badgePulse .5s ease;}
+  @keyframes badgePulse{0%{transform:scale(1);}40%{transform:scale(1.08);}100%{transform:scale(1);}}
+  .mode-idle .mode-dot{background:var(--mode-idle);}
+  .mode-kids .mode-dot{background:var(--mode-kids);}
+  .mode-adult .mode-dot{background:var(--mode-adult);}
+  .mode-family .mode-dot{background:var(--mode-family);}
+
+  .topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  .ghost-btn{background:transparent;border:1px solid var(--border-hi);color:var(--text-mid);padding:6px 12px;border-radius:7px;font-size:12.5px;font-weight:500;transition:.15s;}
+  .ghost-btn:hover{border-color:var(--accent);color:var(--text-hi);}
+
+  .layout{flex:1;display:grid;grid-template-columns:1fr 320px;min-height:0;}
+  #app.kiosk .layout{grid-template-columns:1fr;}
+  #app.kiosk .sidebar,#app.kiosk .topbar-actions .toggleable{display:none;}
+
+  .stage{position:relative;background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  .stage video,.stage img{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:cover;}
+  .stage-placeholder{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px;background:radial-gradient(circle at 50% 40%, rgba(255,255,255,0.05), transparent 60%);}
+  .ph-icon{font-size:44px;opacity:.6;}
+  .ph-title{font-family:var(--font-display);font-size:19px;font-weight:600;}
+  .ph-hint{font-family:var(--font-mono);font-size:12.5px;color:var(--text-dim);max-width:320px;}
+
+  .sidebar{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;}
+  .card{padding:16px;border-bottom:1px solid var(--border);}
+  .card-header{display:flex;align-items:center;justify-content:space-between;font-family:var(--font-display);font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-mid);margin-bottom:12px;}
+  .pill{font-family:var(--font-mono);font-size:10.5px;padding:3px 8px;border-radius:20px;background:var(--surface-2);color:var(--text-dim);border:1px solid var(--border-hi);}
+  .pill.ready{color:var(--accent);border-color:var(--accent);}
+  .pill.err{color:var(--offline);border-color:var(--offline);}
+
+  .sensor-frame{position:relative;width:100%;aspect-ratio:4/3;background:#06080B;border-radius:8px;overflow:hidden;border:1px solid var(--border);}
+  .sensor-frame video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
+
+  .faces-list{list-style:none;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;}
+  .faces-list li{display:flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:12px;padding:7px 9px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border);}
+  .faces-list li.empty{color:var(--text-dim);justify-content:center;background:transparent;border-style:dashed;}
+  .face-tag{width:7px;height:7px;border-radius:50%;flex:none;}
+  .face-meta{color:var(--text-dim);margin-left:auto;font-size:11.5px;}
+
+  .totals-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .totals-grid div{background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:9px 11px;}
+  .totals-grid span{display:block;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;}
+  .totals-grid strong{font-family:var(--font-display);font-size:19px;}
+
+  .footer-note{flex:none;padding:8px 20px;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);background:var(--surface);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;align-items:center;justify-content:center;}
+  .modal-backdrop.open{display:flex;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:90%;max-width:340px;}
+  .modal h2{font-family:var(--font-display);font-size:15px;margin:0 0 16px;}
+  .modal input{width:100%;padding:9px 12px;border:1px solid var(--border-hi);background:var(--surface-2);color:var(--text-hi);border-radius:7px;font-family:var(--font-mono);font-size:13px;margin-bottom:16px;}
+  .modal input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+  .modal-actions button{padding:7px 14px;border-radius:7px;font-size:12.5px;font-weight:500;border:1px solid var(--border-hi);background:transparent;color:var(--text-mid);}
+  .modal-actions button.save{background:var(--accent);color:#06080B;border:none;font-weight:600;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand"><span class="brand-dot"></span>SCOOP AUDIENCE<span class="brand-sep">/</span><span class="brand-sub">Kiosk</span></div>
+    <span class="conn-badge" id="connBadge"><span class="dot"></span><span id="connText">Connecting…</span></span>
+    <span class="mode-badge mode-idle" id="modeBadge"><span class="mode-dot"></span><span id="modeText">Idle</span></span>
+    <div class="topbar-actions">
+      <button class="ghost-btn toggleable" id="screenNameBtn">Screen: <span id="screenNameLabel">—</span></button>
+      <button class="ghost-btn toggleable" id="panelToggleBtn">Panel</button>
+      <button class="ghost-btn" id="fullscreenBtn">⛶ Kiosk Mode</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="stage" id="stage">
+      <video id="playerVideo" playsinline muted loop style="display:none;"></video>
+      <img id="playerImage" alt="" style="display:none;">
+      <div class="stage-placeholder" id="stagePlaceholder">
+        <div class="ph-icon">🖥️</div>
+        <div class="ph-title">No content published yet</div>
+        <div class="ph-hint">Publish family / kids / adult / idle content from the Admin dashboard's Content panel.</div>
+      </div>
+    </div>
+
+    <aside class="sidebar" id="sidebar">
+      <div class="card">
+        <div class="card-header">Camera <span class="pill" id="cameraPill">Init…</span></div>
+        <div class="sensor-frame"><video id="camVideo" autoplay muted playsinline></video></div>
+      </div>
+      <div class="card">
+        <div class="card-header">Live Audience <span class="pill" id="activePill">0 active</span></div>
+        <ul class="faces-list" id="facesList"><li class="empty">No one detected</li></ul>
+      </div>
+      <div class="card">
+        <div class="card-header">Unique Visitors Today</div>
+        <div class="totals-grid">
+          <div><span>Total</span><strong id="totTotal">0</strong></div>
+          <div><span>Avg Dwell</span><strong id="totDwell">—</strong></div>
+          <div><span>Male</span><strong id="totMale" style="color:var(--male)">0</strong></div>
+          <div><span>Female</span><strong id="totFemale" style="color:var(--female)">0</strong></div>
+          <div><span>Children</span><strong id="totChildren" style="color:var(--child)">0</strong></div>
+          <div><span>Adults</span><strong id="totAdults">0</strong></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="footer-note" id="footerNote">Scoop Audience Kiosk · starting…</div>
+</div>
+
+<div id="screenModal" class="modal-backdrop">
+  <div class="modal">
+    <h2>Name This Screen</h2>
+    <input type="text" id="screenNameInput" placeholder="e.g., Mall-Entry-01">
+    <div class="modal-actions">
+      <button id="screenNameCancel">Cancel</button>
+      <button id="screenNameSave" class="save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import {
+  getDatabase, ref, set, update, remove, onValue, push, onDisconnect, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAVLX6zieKlURkzzxpoOFRCsre5xwIW78U",
+  authDomain: "scoop-audience.firebaseapp.com",
+  databaseURL: "https://scoop-audience-default-rtdb.firebaseio.com",
+  projectId: "scoop-audience",
+  storageBucket: "scoop-audience.firebasestorage.app",
+  messagingSenderId: "1032221113395",
+  appId: "1:1032221113395:web:45bcb5b7e6a858d6e6f746"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const db = getDatabase(fbApp);
+const auth = getAuth(fbApp);
+
+/* Anonymous auth so RTDB security rules can require `auth != null` instead of
+   leaving the project fully open. If this rejects, the Anonymous provider
+   probably isn't enabled yet in Firebase Console → Authentication → Sign-in method. */
+let authOk = false;
+const authReady = signInAnonymously(auth).then(()=>{ authOk = true; }).catch(err=>{
+  console.error('Firebase anonymous sign-in failed:', err);
+  throw err;
+});
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('../sw.js', { scope: '/' }).catch(()=>{}));
+}
+
+function slugify(name){
+  return String(name).trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'screen';
+}
+
+(function(){
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+
+  /* ──────── TUNABLE PARAMETERS ──────── */
+  const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+  const DIST_THRESHOLD = 0.5;        // face-descriptor distance under which two detections are "the same person"
+  const CHILD_AGE_THRESHOLD = 13;    // estimated age below this => counted as a child
+  const ABSENCE_GRACE_MS = 4000;     // how long a face can vanish from frame before we consider them departed
+  const DETECTION_INTERVAL_MS = 700; // camera detection tick
+  const PRESENCE_UPDATE_MS = 5000;   // how often we push status/analytics to Firebase
+
+  /* ──────── SCREEN IDENTITY ──────── */
+  let screenName = localStorage.getItem('scoop-kiosk-name') || '';
+  let screenId = screenName ? slugify(screenName) : '';
+
+  function refreshScreenLabel(){
+    $('screenNameLabel').textContent = screenName || 'unset';
+  }
+  refreshScreenLabel();
+
+  function openScreenModal(){
+    $('screenNameInput').value = screenName;
+    $('screenModal').classList.add('open');
+    $('screenNameInput').focus();
+  }
+  $('screenNameBtn').addEventListener('click', openScreenModal);
+  $('screenNameCancel').addEventListener('click', ()=> $('screenModal').classList.remove('open'));
+  $('screenModal').addEventListener('click', e=>{ if(e.target === $('screenModal')) $('screenModal').classList.remove('open'); });
+  $('screenNameSave').addEventListener('click', ()=>{
+    const name = $('screenNameInput').value.trim();
+    if(!name) return;
+    const oldId = screenId;
+    screenName = name;
+    screenId = slugify(name);
+    localStorage.setItem('scoop-kiosk-name', screenName);
+    refreshScreenLabel();
+    $('screenModal').classList.remove('open');
+    if(oldId && oldId !== screenId) remove(ref(db, 'screens/'+oldId)).catch(()=>{});
+    registerPresence();
+  });
+
+  if(!screenName) openScreenModal();
+
+  /* ──────── FIREBASE CONNECTIVITY ──────── */
+  let dbConnected = false;
+  onValue(ref(db, '.info/connected'), snap=>{
+    dbConnected = snap.val() === true;
+    $('connBadge').classList.toggle('live', dbConnected);
+    $('connBadge').classList.toggle('offline', !dbConnected);
+    $('connText').textContent = dbConnected ? 'Firebase Connected' : 'Reconnecting…';
+  });
+
+  /* ──────── PRESENCE ──────── */
+  async function registerPresence(){
+    if(!screenId) return;
+    try{ await authReady; }catch(e){ return; }
+    set(ref(db, 'screens/'+screenId), {
+      name: screenName, ip: 'kiosk', location: '', group: 'Default',
+      status: 'online', mode: 'idle',
+      analytics: { total:0, male:0, female:0, children:0 },
+      dwellTime: 0, lastSeen: serverTimestamp(), createdAt: serverTimestamp()
+    });
+    onDisconnect(ref(db, 'screens/'+screenId+'/status')).set('offline');
+    onDisconnect(ref(db, 'screens/'+screenId+'/lastSeen')).set(serverTimestamp());
+  }
+  if(screenId) registerPresence();
+
+  let latestAnalytics = { total:0, male:0, female:0, children:0 };
+  let latestMode = 'idle';
+
+  function avgDwell(){
+    if(!dwellSamples.length) return 0;
+    return dwellSamples.reduce((a,b)=>a+b,0) / dwellSamples.length;
+  }
+
+  function pushPresence(){
+    if(!screenId || !dbConnected || !authOk) return;
+    update(ref(db, 'screens/'+screenId), {
+      status: 'online', mode: latestMode, analytics: latestAnalytics,
+      dwellTime: Math.round(avgDwell()*10)/10, lastSeen: serverTimestamp()
+    });
+  }
+  setInterval(pushPresence, PRESENCE_UPDATE_MS);
+
+  function logUniqueEvent(entry){
+    if(!screenId || !authOk) return;
+    push(ref(db, 'events'), { screenId, gender: entry.gender, isChild: entry.isChild, timestamp: serverTimestamp() });
+  }
+  function logDwellSample(seconds){
+    if(!screenId || !authOk) return;
+    push(ref(db, 'dwellSamples'), { screenId, seconds, timestamp: serverTimestamp() });
+  }
+
+  /* ──────── CAMERA ──────── */
+  const camVideo = $('camVideo');
+  async function initCamera(){
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'user' }, audio:false });
+      camVideo.srcObject = stream;
+      await camVideo.play();
+      $('cameraPill').textContent = 'Live';
+      $('cameraPill').classList.add('ready');
+    }catch(err){
+      $('cameraPill').textContent = 'Unavailable';
+      $('cameraPill').classList.add('err');
+      $('footerNote').textContent = 'Camera error: ' + err.message;
+    }
+  }
+
+  /* ──────── FACE DETECTION MODELS ──────── */
+  async function loadModels(){
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL),
+      faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+    ]);
+  }
+
+  /* ──────── DEDUP / TRACKING STATE ────────
+     `gallery` holds one entry per unique person seen today (matched by face
+     descriptor distance) — this is what makes the counts unique instead of
+     re-counting the same visitor on every detection tick. `activeState` holds
+     who is currently in frame (for the live panel + dwell timing). Both reset
+     at local midnight so "Unique Visitors Today" is a daily figure. */
+  let gallery = [];
+  let activeState = {};
+  let dwellSamples = [];
+  let uid = 0;
+  let lastResetDate = new Date().toDateString();
+
+  function checkDailyReset(){
+    const today = new Date().toDateString();
+    if(today !== lastResetDate){
+      lastResetDate = today;
+      gallery = [];
+      activeState = {};
+      dwellSamples = [];
+    }
+  }
+
+  function matchGallery(descriptor){
+    let best = -1, bestDist = Infinity;
+    gallery.forEach((g,i)=>{
+      const d = faceapi.euclideanDistance(g.descriptor, descriptor);
+      if(d < bestDist){ bestDist = d; best = i; }
+    });
+    return bestDist < DIST_THRESHOLD ? best : -1;
+  }
+
+  async function detectTick(){
+    checkDailyReset();
+    if(camVideo.readyState < 2) return;
+
+    const results = await faceapi.detectAllFaces(camVideo, new faceapi.TinyFaceDetectorOptions({ inputSize:224, scoreThreshold:0.5 }))
+      .withFaceLandmarks(true)
+      .withAgeAndGender()
+      .withFaceDescriptors();
+
+    const now = Date.now();
+    const seenIds = new Set();
+
+    results.forEach(r=>{
+      const isChild = r.age < CHILD_AGE_THRESHOLD;
+      const idx = matchGallery(r.descriptor);
+      let entry;
+      if(idx === -1){
+        entry = { id: 'p'+(++uid), descriptor: r.descriptor, gender: r.gender, isChild, age: r.age, firstSeen: now };
+        gallery.push(entry);
+        logUniqueEvent(entry);
+      } else {
+        entry = gallery[idx];
+      }
+      seenIds.add(entry.id);
+      if(!activeState[entry.id]) activeState[entry.id] = { start: now, last: now };
+      else activeState[entry.id].last = now;
+    });
+
+    Object.keys(activeState).forEach(id=>{
+      if(!seenIds.has(id) && (now - activeState[id].last) > ABSENCE_GRACE_MS){
+        const durationSec = (activeState[id].last - activeState[id].start) / 1000;
+        if(durationSec >= 1){
+          dwellSamples.push(durationSec);
+          if(dwellSamples.length > 200) dwellSamples.shift();
+          logDwellSample(durationSec);
+        }
+        delete activeState[id];
+      }
+    });
+
+    renderFacesPanel();
+    updateModeAndTotals();
+  }
+
+  function renderFacesPanel(){
+    const ids = Object.keys(activeState);
+    $('activePill').textContent = ids.length + ' active';
+    if(!ids.length){
+      $('facesList').innerHTML = '<li class="empty">No one detected</li>';
+      return;
+    }
+    $('facesList').innerHTML = ids.map(id=>{
+      const g = gallery.find(x=>x.id === id);
+      if(!g) return '';
+      const dwell = Math.round((activeState[id].last - activeState[id].start) / 1000);
+      const cls = g.isChild ? 'child' : g.gender;
+      const label = g.isChild ? 'Child' : (g.gender === 'male' ? 'Male' : 'Female');
+      return `<li><span class="face-tag" style="background:var(--${cls})"></span>${label}<span class="face-meta">${dwell}s</span></li>`;
+    }).join('');
+  }
+
+  function updateModeAndTotals(){
+    const activeList = Object.keys(activeState).map(id=>gallery.find(g=>g.id===id)).filter(Boolean);
+    let mode = 'idle';
+    if(activeList.length){
+      const hasChild = activeList.some(a=>a.isChild);
+      const hasAdult = activeList.some(a=>!a.isChild);
+      mode = (hasChild && hasAdult) ? 'family' : hasChild ? 'kids' : 'adult';
+    }
+    applyMode(mode);
+
+    const total = gallery.length;
+    const male = gallery.filter(g=>g.gender==='male').length;
+    const female = gallery.filter(g=>g.gender==='female').length;
+    const children = gallery.filter(g=>g.isChild).length;
+
+    $('totTotal').textContent = total;
+    $('totMale').textContent = male;
+    $('totFemale').textContent = female;
+    $('totChildren').textContent = children;
+    $('totAdults').textContent = Math.max(total - children, 0);
+    $('totDwell').textContent = dwellSamples.length ? (avgDwell().toFixed(1) + 's') : '—';
+
+    latestAnalytics = { total, male, female, children };
+    latestMode = mode;
+  }
+
+  /* ──────── MODE / STAGE PLAYBACK ──────── */
+  let currentMode = null;
+  function applyMode(mode){
+    if(mode === currentMode) return;
+    currentMode = mode;
+    const badge = $('modeBadge');
+    badge.className = 'mode-badge mode-' + mode + ' pulse';
+    setTimeout(()=>badge.classList.remove('pulse'), 500);
+    $('modeText').textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+    renderStage(mode);
+  }
+
+  let lastObjectUrl = null;
+  function renderStage(mode){
+    const record = contentState[mode];
+    const videoEl = $('playerVideo'), imgEl = $('playerImage'), placeholder = $('stagePlaceholder');
+    if(!record){
+      videoEl.style.display = 'none';
+      imgEl.style.display = 'none';
+      placeholder.style.display = 'flex';
+      return;
+    }
+    placeholder.style.display = 'none';
+    if(lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+    const objUrl = URL.createObjectURL(record.blob);
+    lastObjectUrl = objUrl;
+    if(record.type === 'video'){
+      imgEl.style.display = 'none';
+      videoEl.style.display = 'block';
+      videoEl.src = objUrl;
+      videoEl.play().catch(()=>{});
+    } else {
+      videoEl.style.display = 'none';
+      imgEl.style.display = 'block';
+      imgEl.src = objUrl;
+    }
+  }
+
+  /* ──────── OFFLINE CONTENT CACHE (IndexedDB) ────────
+     Content is fetched once from Firebase Storage and stored as a Blob in
+     IndexedDB, keyed by mode. Playback always reads from this local cache, so
+     the kiosk keeps playing its last-published content even with no network. */
+  const DB_NAME = 'scoop-kiosk-cache', STORE = 'content';
+  function openCacheDB(){
+    return new Promise((resolve, reject)=>{
+      const req = indexedDB.open(DB_NAME, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath:'mode' });
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  const cacheDBPromise = openCacheDB();
+
+  async function getCachedContent(mode){
+    const idb = await cacheDBPromise;
+    return new Promise(resolve=>{
+      const req = idb.transaction(STORE,'readonly').objectStore(STORE).get(mode);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+  }
+  async function putCachedContent(record){
+    const idb = await cacheDBPromise;
+    return new Promise((resolve, reject)=>{
+      const tx = idb.transaction(STORE,'readwrite');
+      tx.objectStore(STORE).put(record);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  const contentState = {}; // mode -> {mode, blob, type, name, updatedAt}
+
+  function activateContent(mode, record){
+    contentState[mode] = record;
+    if(currentMode === mode) renderStage(mode);
+  }
+
+  async function syncContentFromRemote(mode, remote){
+    const cached = await getCachedContent(mode);
+    if(cached && cached.updatedAt === remote.updatedAt){
+      activateContent(mode, cached);
+      return;
+    }
+    try{
+      $('footerNote').textContent = `Downloading ${mode} content…`;
+      const resp = await fetch(remote.url);
+      const blob = await resp.blob();
+      const record = { mode, blob, type: remote.type, name: remote.name, updatedAt: remote.updatedAt };
+      await putCachedContent(record);
+      activateContent(mode, record);
+      $('footerNote').textContent = `${mode} content updated.`;
+    }catch(err){
+      if(cached) activateContent(mode, cached);
+      $('footerNote').textContent = `Offline — using cached ${mode} content.`;
+    }
+  }
+
+  onValue(ref(db, 'content'), snap=>{
+    const val = snap.val() || {};
+    Object.keys(val).forEach(mode=> syncContentFromRemote(mode, val[mode]));
+  });
+
+  /* ──────── TOPBAR CONTROLS ──────── */
+  $('panelToggleBtn').addEventListener('click', ()=>{
+    const sidebar = $('sidebar');
+    sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none';
+  });
+  $('fullscreenBtn').addEventListener('click', ()=>{
+    $('app').classList.toggle('kiosk');
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
+    else document.exitFullscreen?.().catch(()=>{});
+  });
+
+  /* ──────── INIT ──────── */
+  async function init(){
+    initCamera();
+    $('footerNote').textContent = 'Loading detection models…';
+    await loadModels();
+    $('footerNote').textContent = 'Detection ready.';
+    setInterval(detectTick, DETECTION_INTERVAL_MS);
+  }
+  init();
+})();
+</script>
+</body>
+</html>

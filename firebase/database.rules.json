@@ -1,0 +1,12 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "events": {
+      ".indexOn": "timestamp"
+    },
+    "dwellSamples": {
+      ".indexOn": "timestamp"
+    }
+  }
+}

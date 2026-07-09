@@ -1,0 +1,16 @@
+{
+  "database": {
+    "rules": "firebase/database.rules.json"
+  },
+  "storage": {
+    "rules": "firebase/storage.rules"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": ["firebase.json", "firebase/**", "**/.*", "**/node_modules/**"],
+    "rewrites": [
+      { "source": "/admin", "destination": "/admin/index.html" },
+      { "source": "/kiosk", "destination": "/kiosk/index.html" }
+    ]
+  }
+}
