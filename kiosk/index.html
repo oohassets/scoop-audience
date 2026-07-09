@@ -77,6 +77,10 @@
   .layout{flex:1;display:grid;grid-template-columns:1fr 320px;min-height:0;}
   #app.kiosk .layout{grid-template-columns:1fr;}
   #app.kiosk .sidebar,#app.kiosk .topbar-actions .toggleable{display:none;}
+  /* True kiosk mode: only the stage (video/image display) is visible — no
+     topbar, no footer note. Escape (or exiting native browser fullscreen)
+     brings them back, since the "Kiosk Mode" button itself is hidden too. */
+  #app.kiosk .topbar,#app.kiosk .footer-note{display:none;}
 
   .stage{position:relative;background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center;}
   .stage video,.stage img{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:cover;}
@@ -592,6 +596,21 @@ function slugify(name){
     $('app').classList.toggle('kiosk');
     if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});
     else document.exitFullscreen?.().catch(()=>{});
+  });
+
+  /* Kiosk mode hides the topbar (and with it, the only button that turns
+     kiosk mode off) — so Escape always exits it, and if the browser's own
+     fullscreen is exited some other way (Esc, F11, Alt-Tab-then-Esc on some
+     platforms), the topbar/footer come back in sync rather than staying
+     hidden with no visible way out. */
+  document.addEventListener('fullscreenchange', ()=>{
+    if(!document.fullscreenElement) $('app').classList.remove('kiosk');
+  });
+  document.addEventListener('keydown', e=>{
+    if(e.key === 'Escape' && $('app').classList.contains('kiosk')){
+      $('app').classList.remove('kiosk');
+      document.exitFullscreen?.().catch(()=>{});
+    }
   });
 
   /* ──────── INIT ──────── */
