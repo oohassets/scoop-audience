@@ -24,8 +24,8 @@
 
 const BASE = new URL('./', self.location).href;
 
-const SHELL_CACHE = 'scoop-audience-shell-v1';
-const RUNTIME_CACHE = 'scoop-audience-runtime-v1';
+const SHELL_CACHE = 'scoop-audience-shell-v2';
+const RUNTIME_CACHE = 'scoop-audience-runtime-v2';
 
 const SHELL_ASSETS = [
   BASE + 'admin/index.html',

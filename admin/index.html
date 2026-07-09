@@ -477,7 +477,23 @@ document.getElementById('loginForm').addEventListener('submit', async e=>{
 });
 
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=> navigator.serviceWorker.register('../sw.js').catch(()=>{}));
+  window.addEventListener('load', async ()=>{
+    try{
+      const reg = await navigator.serviceWorker.register('../sw.js');
+      /* sw.js already calls skipWaiting()+clients.claim(), so a new worker
+         takes control automatically — but the already-loaded page's JS/HTML
+         doesn't change on its own until it reloads. Force that reload once,
+         and poll for updates so editing sw.js/app files actually reaches
+         browser tabs that are just sitting open (no manual re-visit needed). */
+      let refreshedOnce = false;
+      navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+        if(refreshedOnce) return;
+        refreshedOnce = true;
+        window.location.reload();
+      });
+      setInterval(()=> reg.update().catch(()=>{}), 60*60*1000);
+    }catch(e){}
+  });
 }
 
 function slugify(name){

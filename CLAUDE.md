@@ -57,6 +57,33 @@ Database schema below).
 
 Firebase JS SDK version pinned to `10.13.2` via `https://www.gstatic.com/firebasejs/10.13.2/...`.
 
+### One-time external setup (Console/gcloud, not in this repo's files)
+
+None of these are fixable by editing code — they're Firebase/GCP project configuration, done once:
+
+1. **Enable the Anonymous provider** — Console → Authentication → Sign-in method → Anonymous → Enable.
+   Without it, kiosk sign-in fails with `auth/admin-restricted-operation` (surfaced on-screen in the
+   kiosk's connectivity badge/footer, not just devtools, since no one's there to open devtools on a
+   public display).
+2. **Add every domain this is hosted on to Authorized domains** — Console → Authentication → Settings →
+   Authorized domains (e.g. `oohassets.github.io`; `localhost` and `*.web.app`/`*.firebaseapp.com` are
+   authorized by default). Missing this → `auth/unauthorized-domain`.
+3. **Paste `firebase/database.rules.json` and `firebase/storage.rules`** into Console → Realtime Database
+   → Rules and Console → Storage → Rules.
+4. **Set CORS on the Storage bucket** — the kiosk downloads published content with a plain `fetch()` (to
+   cache it in IndexedDB for offline playback), and Cloud Storage buckets have no CORS policy by default,
+   which fails as `... has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header ...` in
+   the console even though the file itself loads fine in a `<video>`/`<img>` tag (media elements aren't
+   subject to CORS the same way `fetch()` is). Fix once, from a machine with the Google Cloud SDK
+   installed and authenticated to this project:
+   ```
+   gcloud auth login
+   gcloud config set project scoop-audience
+   gsutil cors set firebase/cors.json gs://scoop-audience.firebasestorage.app
+   ```
+   `firebase/cors.json` in this repo is the source of truth for the allowed origins — add any new
+   hosting domain there too when you add one to Authorized domains above.
+
 ### Auth & security rules
 
 Two different auth models, both satisfying the same `auth != null` RTDB/Storage rules:
@@ -185,6 +212,29 @@ the wrong URL and silently fail to cache under a subpath deployment. At runtime 
 after the first successful load. Firebase hosts (`firebaseio.com`, `firebasestorage.googleapis.com`,
 etc.) are explicitly excluded from the service worker's caching so real-time sync and the kiosk's own
 IndexedDB content cache aren't interfered with.
+
+### How an update actually reaches admin + kiosk
+
+Pushing a new commit is not enough by itself — this is what makes it propagate to every open tab
+(including unattended kiosks that never navigate on their own):
+
+1. `sw.js` already calls `skipWaiting()` on install and `clients.claim()` on activate, so as soon as a
+   browser notices the script bytes changed, the new worker takes over immediately instead of waiting for
+   every tab to close.
+2. Both `admin/index.html` and `kiosk/index.html` register a `controllerchange` listener that reloads the
+   page exactly once when that handover happens — this is what actually gets the new HTML/JS running,
+   since taking control of a page doesn't retroactively change code already loaded into it.
+3. Both also call `registration.update()` every hour (`setInterval`), instead of relying solely on the
+   browser's own background check (which is nominally ~24h and is also triggered by navigation — a kiosk
+   that just sits on one loaded page for days won't trigger it any other way).
+
+Net effect: push a change, and every open admin tab / kiosk screen picks it up and self-reloads within
+about an hour, with no one touching the device.
+
+**Cache versioning**: `sw.js`'s `SHELL_CACHE`/`RUNTIME_CACHE` constants are suffixed `-v1`. The `activate`
+handler deletes any cache whose name doesn't match the current constants — so if you change what/how
+something is cached (not just the app code inside the existing strategy), bump the suffix (`-v2`, etc.)
+to force old cached entries to be dropped instead of silently lingering under the old cache name.
 
 ## Deployment
 

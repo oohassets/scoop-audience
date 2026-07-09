@@ -207,11 +207,34 @@ const auth = getAuth(fbApp);
 let authOk = false;
 const authReady = signInAnonymously(auth).then(()=>{ authOk = true; }).catch(err=>{
   console.error('Firebase anonymous sign-in failed:', err);
+  const badge = document.getElementById('connBadge');
+  badge.classList.remove('live');
+  badge.classList.add('offline');
+  document.getElementById('connText').textContent = 'Auth error: ' + err.code;
+  document.getElementById('footerNote').textContent =
+    'Sign-in failed (' + err.code + ') — enable "Anonymous" under Firebase Console → Authentication → Sign-in method.';
   throw err;
 });
 
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=> navigator.serviceWorker.register('../sw.js').catch(()=>{}));
+  window.addEventListener('load', async ()=>{
+    try{
+      const reg = await navigator.serviceWorker.register('../sw.js');
+      /* sw.js already calls skipWaiting()+clients.claim(), so a new worker
+         takes control automatically — but the already-loaded page's JS/HTML
+         doesn't change on its own until it reloads, and an unattended kiosk
+         never navigates on its own to trigger that. Force one reload once
+         the new worker takes over, and poll hourly for updates instead of
+         relying on the browser's own ~24h background check. */
+      let refreshedOnce = false;
+      navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+        if(refreshedOnce) return;
+        refreshedOnce = true;
+        window.location.reload();
+      });
+      setInterval(()=> reg.update().catch(()=>{}), 60*60*1000);
+    }catch(e){}
+  });
 }
 
 function slugify(name){
