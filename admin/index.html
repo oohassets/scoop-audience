@@ -477,7 +477,7 @@ document.getElementById('loginForm').addEventListener('submit', async e=>{
 });
 
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=> navigator.serviceWorker.register('../sw.js', { scope: '/' }).catch(()=>{}));
+  window.addEventListener('load', ()=> navigator.serviceWorker.register('../sw.js').catch(()=>{}));
 }
 
 function slugify(name){

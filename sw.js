@@ -8,22 +8,32 @@
    (see kiosk/index.html), so double-caching it here would be redundant and
    could serve stale published content.
 
-   This file lives at the project root (not inside admin/ or kiosk/) and is
-   registered with an explicit `{ scope: '/' }` from both pages specifically
-   so one worker can control both subfolders — a service worker's scope can
-   never be broader than the directory its own script is served from, so it
-   has to stay at root. */
+   This file lives at the project root (not inside admin/ or kiosk/) so one
+   worker can control both subfolders — a service worker's scope can never be
+   broader than the directory its own script is served from. Both pages
+   register it as `../sw.js` with the (default) scope of that directory, i.e.
+   wherever this repo's root actually is.
+
+   Paths below are derived from `self.location` rather than hardcoded as
+   root-absolute (`/admin/...`) — this repo isn't always served from the
+   domain root. On a GitHub Pages *project* site it's served under
+   `/<repo-name>/`, e.g. https://oohassets.github.io/scoop-audience/, so a
+   hardcoded `/admin/index.html` would resolve to the wrong domain-root path
+   and silently fail to cache. Deriving BASE from self.location keeps this
+   correct under both that and a root deployment (e.g. Firebase Hosting). */
+
+const BASE = new URL('./', self.location).href;
 
 const SHELL_CACHE = 'scoop-audience-shell-v1';
 const RUNTIME_CACHE = 'scoop-audience-runtime-v1';
 
 const SHELL_ASSETS = [
-  '/admin/index.html',
-  '/admin/manifest.json',
-  '/kiosk/index.html',
-  '/kiosk/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png'
+  BASE + 'admin/index.html',
+  BASE + 'admin/manifest.json',
+  BASE + 'kiosk/index.html',
+  BASE + 'kiosk/manifest.json',
+  BASE + 'icons/icon-192.png',
+  BASE + 'icons/icon-512.png'
 ];
 
 const PASSTHROUGH_HOSTS = [

@@ -173,14 +173,33 @@ connection returns, so the detection/event-logging code does not need its own re
 
 ## PWA (manifest + service worker)
 
-Both apps register `/sw.js` (at the repo root, one directory up from `admin/`/`kiosk/`) on load, with an
-explicit `{ scope: '/' }` so the one worker can control both subfolders. `sw.js` caches both HTML shells,
-both manifests, and the icons on install (paths listed as root-absolute, e.g. `/admin/index.html`); at
-runtime it's network-first (falling back to cache offline) for same-origin requests, and cache-first for
-cross-origin vendor assets (Google Fonts, Chart.js, face-api.js + its model weight files) so the kiosk
-can fully cold-start offline after the first successful load. Firebase hosts (`firebaseio.com`,
-`firebasestorage.googleapis.com`, etc.) are explicitly excluded from the service worker's caching so
-real-time sync and the kiosk's own IndexedDB content cache aren't interfered with.
+Both apps register `sw.js` (at the repo root, one directory up — `../sw.js`) on load, with **no explicit
+`scope` option** — the default scope (the directory containing the script) is deliberately left to
+resolve on its own so one worker controls both subfolders correctly wherever the repo is actually
+hosted. `sw.js` derives `BASE = new URL('./', self.location).href` and builds its shell-asset list from
+that instead of hardcoding root-absolute paths like `/admin/index.html` — this repo is **not always
+served from the domain root** (see Deployment below), and a hardcoded `/admin/...` path would resolve to
+the wrong URL and silently fail to cache under a subpath deployment. At runtime it's network-first
+(falling back to cache offline) for same-origin requests, and cache-first for cross-origin vendor assets
+(Google Fonts, Chart.js, face-api.js + its model weight files) so the kiosk can fully cold-start offline
+after the first successful load. Firebase hosts (`firebaseio.com`, `firebasestorage.googleapis.com`,
+etc.) are explicitly excluded from the service worker's caching so real-time sync and the kiosk's own
+IndexedDB content cache aren't interfered with.
+
+## Deployment
+
+Currently deployed via **GitHub Pages** from the `main` branch root (repo: `oohassets/scoop-audience`,
+live at `https://oohassets.github.io/scoop-audience/`, e.g. `/admin/` and `/kiosk/`) — a GitHub-side
+setting (Settings → Pages → Source), not something in this repo's files. `firebase.json` also exists for
+deploying to **Firebase Hosting** instead/as well (`firebase deploy --only hosting`, once `firebase
+login` + a project alias are set up) — its `hosting.rewrites` give clean `/admin` and `/kiosk` routes
+there specifically; GitHub Pages just serves the folders directly (`/admin/`, trailing slash, resolves to
+`admin/index.html`).
+
+**Whichever domain this ends up on must be added to Firebase Console → Authentication → Settings →
+Authorized domains**, or both `signInWithEmailAndPassword` (admin) and `signInAnonymously` (kiosk) fail
+with `auth/unauthorized-domain`. `localhost` and the project's own `*.firebaseapp.com`/`*.web.app` are
+authorized by default; a GitHub Pages domain (`oohassets.github.io`) is not, and has to be added manually.
 
 ## Running / developing
 
