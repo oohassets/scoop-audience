@@ -9,7 +9,8 @@
 <link rel="icon" href="../icons/icon-192.png">
 <link rel="apple-touch-icon" href="../icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..24,400,0,0&display=block" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/dist/face-api.min.js"></script>
 <style>
   :root{
@@ -33,9 +34,9 @@
     --mode-kids:#FFB648;
     --mode-adult:#5C8DF6;
     --mode-family:#C47EF5;
-    --font-display:'Space Grotesk',sans-serif;
+    --font-display:'DM Sans',sans-serif;
     --font-mono:'IBM Plex Mono',monospace;
-    --font-body:'Inter',sans-serif;
+    --font-body:'DM Sans',sans-serif;
     --radius:10px;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -45,7 +46,7 @@
   #app{height:100vh;display:flex;flex-direction:column;}
 
   .topbar{
-    flex:none;height:54px;display:flex;align-items:center;gap:14px;padding:0 20px;
+    flex:none;min-height:54px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:8px 20px;
     border-bottom:1px solid var(--border);background:rgba(18,22,29,0.75);backdrop-filter:blur(8px);
   }
   .brand{font-family:var(--font-display);font-weight:700;font-size:14px;letter-spacing:.07em;display:flex;align-items:center;gap:9px;}
@@ -70,9 +71,15 @@
   .mode-adult .mode-dot{background:var(--mode-adult);}
   .mode-family .mode-dot{background:var(--mode-family);}
 
-  .topbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center;}
+  .topbar-actions{margin-left:auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
   .ghost-btn{background:transparent;border:1px solid var(--border-hi);color:var(--text-mid);padding:6px 12px;border-radius:7px;font-size:12.5px;font-weight:500;transition:.15s;}
   .ghost-btn:hover{border-color:var(--accent);color:var(--text-hi);}
+  .ghost-btn{display:inline-flex;align-items:center;gap:6px;}
+
+  .material-symbols-outlined{
+    font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 20;
+    font-size:18px;line-height:1;user-select:none;
+  }
 
   .layout{flex:1;display:grid;grid-template-columns:1fr 320px;min-height:0;}
   #app.kiosk .layout{grid-template-columns:1fr;}
@@ -97,7 +104,20 @@
   .pill.err{color:var(--offline);border-color:var(--offline);}
 
   .sensor-frame{position:relative;width:100%;aspect-ratio:4/3;background:#06080B;border-radius:8px;overflow:hidden;border:1px solid var(--border);}
-  .sensor-frame video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
+  .sensor-frame video{width:100%;height:100%;object-fit:contain;transform:scaleX(-1);background:#000;}
+  .sensor-frame canvas{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none;}
+  .bracket{position:absolute;width:14px;height:14px;border-color:var(--accent);opacity:.85;}
+  .bracket.tl{top:-1px;left:-1px;border-top:2px solid;border-left:2px solid;}
+  .bracket.tr{top:-1px;right:-1px;border-top:2px solid;border-right:2px solid;}
+  .bracket.bl{bottom:-1px;left:-1px;border-bottom:2px solid;border-left:2px solid;}
+  .bracket.br{bottom:-1px;right:-1px;border-bottom:2px solid;border-right:2px solid;}
+  .scanline{
+    position:absolute;left:0;right:0;height:2px;top:0;
+    background:linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity:.55;animation:scan 2.6s linear infinite;
+  }
+  @keyframes scan{0%{top:0%;}100%{top:100%;}}
+  @media (prefers-reduced-motion: reduce){ .scanline{animation:none;} }
 
   .faces-list{list-style:none;display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;}
   .faces-list li{display:flex;align-items:center;gap:9px;font-family:var(--font-mono);font-size:12px;padding:7px 9px;border-radius:6px;background:var(--surface-2);border:1px solid var(--border);}
@@ -134,6 +154,23 @@
   .login-submit{width:100%;padding:10px;border-radius:7px;font-size:13px;font-weight:600;border:1px solid rgba(79,230,199,.4);background:var(--accent-dim);color:var(--accent);margin-top:6px;}
   .login-submit:hover{background:rgba(79,230,199,.2);border-color:var(--accent);}
   .login-submit:disabled{opacity:.6;cursor:default;}
+
+  /* Sidebar is a fixed 320px column by default (fine on real kiosk hardware,
+     which is a large fixed display) — but on a narrow/portrait viewport
+     (phone/tablet preview, or a portrait-mounted screen) that column either
+     doesn't fit or leaves the video stage too cramped, so stack instead. */
+  @media (max-width:880px){
+    .layout{grid-template-columns:1fr;grid-template-rows:1fr auto;}
+    #app.kiosk .layout{grid-template-rows:1fr;}
+    .sidebar{max-height:42vh;border-left:none;border-top:1px solid var(--border);}
+  }
+  @media (max-width:480px){
+    .topbar{padding:8px 12px;gap:6px 10px;}
+    .brand-sub{display:none;}
+    .totals-grid{grid-template-columns:1fr;}
+    .sidebar{max-height:50vh;}
+    .login-card{padding:24px 20px;}
+  }
 </style>
 </head>
 <body>
@@ -161,21 +198,19 @@
   <header class="topbar">
     <div class="brand"><span class="brand-dot"></span>SCOOP AUDIENCE<span class="brand-sep">/</span><span class="brand-sub">Kiosk</span></div>
     <span class="conn-badge" id="connBadge"><span class="dot"></span><span id="connText">Connecting…</span></span>
-    <span class="mode-badge mode-idle" id="modeBadge"><span class="mode-dot"></span><span id="modeText">Idle</span></span>
     <div class="topbar-actions">
       <button class="ghost-btn toggleable" id="screenNameBtn">Screen: <span id="screenNameLabel">—</span></button>
-      <button class="ghost-btn toggleable" id="panelToggleBtn">Panel</button>
-      <button class="ghost-btn" id="fullscreenBtn">⛶ Kiosk Mode</button>
-      <button class="ghost-btn toggleable" id="signOutBtn">Sign Out</button>
+      <button class="ghost-btn" id="fullscreenBtn"><span class="material-symbols-outlined">fullscreen</span> Kiosk Mode</button>
+      <button class="ghost-btn toggleable" id="signOutBtn" title="Sign Out"><span class="material-symbols-outlined">logout</span></button>
     </div>
   </header>
 
   <div class="layout">
     <div class="stage" id="stage">
-      <video id="playerVideo" playsinline muted loop style="display:none;"></video>
+      <video id="playerVideo" playsinline muted style="display:none;"></video>
       <img id="playerImage" alt="" style="display:none;">
       <div class="stage-placeholder" id="stagePlaceholder">
-        <div class="ph-icon">🖥️</div>
+        <div class="ph-icon"><span class="material-symbols-outlined" style="font-size:44px;">tv</span></div>
         <div class="ph-title">No content published yet</div>
         <div class="ph-hint">Publish family / kids / adult / idle content from the Admin dashboard's Content panel.</div>
       </div>
@@ -184,10 +219,16 @@
     <aside class="sidebar" id="sidebar">
       <div class="card">
         <div class="card-header">Camera <span class="pill" id="cameraPill">Init…</span></div>
-        <div class="sensor-frame"><video id="camVideo" autoplay muted playsinline></video></div>
+        <div class="sensor-frame">
+          <video id="camVideo" autoplay muted playsinline></video>
+          <canvas id="overlay"></canvas>
+          <span class="bracket tl"></span><span class="bracket tr"></span>
+          <span class="bracket bl"></span><span class="bracket br"></span>
+          <div class="scanline"></div>
+        </div>
       </div>
       <div class="card">
-        <div class="card-header">Live Audience <span class="pill" id="activePill">0 active</span></div>
+        <div class="card-header">Detected Audience <span class="pill" id="activePill">0 active</span></div>
         <ul class="faces-list" id="facesList"><li class="empty">No one detected</li></ul>
       </div>
       <div class="card">
@@ -319,7 +360,7 @@ function slugify(name){
 
   /* ──────── TUNABLE PARAMETERS ──────── */
   const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
-  const DIST_THRESHOLD = 0.5;        // face-descriptor distance under which two detections are "the same person"
+  const DIST_THRESHOLD = 0.6;        // face-descriptor distance under which two detections are "the same person" (0.6 is face-api.js's own recommended same-person cutoff — 0.5 was too strict and misclassified the same real visitor as "new" between ticks whenever their angle/lighting/expression shifted slightly, inflating counts)
   const CHILD_AGE_THRESHOLD = 13;    // estimated age below this => counted as a child
   const ABSENCE_GRACE_MS = 4000;     // how long a face can vanish from frame before we consider them departed
   const DETECTION_INTERVAL_MS = 700; // camera detection tick
@@ -464,16 +505,73 @@ function slugify(name){
     return bestDist < DIST_THRESHOLD ? best : -1;
   }
 
+  function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  /* Draws a bounding box + "MALE · 34y" style label per detected face on the
+     sensor preview, scaled to the video's displayed size. The canvas itself
+     is mirrored via CSS (scaleX(-1)) to match the mirrored video, so boxes
+     are drawn in plain, unmirrored video coordinates. */
+  function drawOverlay(results){
+    const overlay = $('overlay');
+    const displayW = camVideo.clientWidth || camVideo.videoWidth || 320;
+    const displayH = camVideo.clientHeight || camVideo.videoHeight || 240;
+    if(overlay.width !== displayW || overlay.height !== displayH){
+      overlay.width = displayW;
+      overlay.height = displayH;
+    }
+    const scaleX = displayW / (camVideo.videoWidth || displayW);
+    const scaleY = displayH / (camVideo.videoHeight || displayH);
+
+    const ctx = overlay.getContext('2d');
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    ctx.lineWidth = 2;
+    ctx.font = '11px IBM Plex Mono, monospace';
+
+    results.forEach(r=>{
+      const isChild = r.age < CHILD_AGE_THRESHOLD;
+      const color = isChild ? cssVar('--child') : cssVar(r.gender === 'male' ? '--male' : '--female');
+      const box = r.detection.box;
+      const x = box.x * scaleX, y = box.y * scaleY;
+      const w = box.width * scaleX, h = box.height * scaleY;
+
+      ctx.strokeStyle = color;
+      ctx.strokeRect(x, y, w, h);
+
+      const label = (isChild ? 'CHILD' : r.gender.toUpperCase()) + ' · ' + Math.round(r.age) + 'y';
+      const tw = ctx.measureText(label).width + 10;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, Math.max(0, y - 18), tw, 18);
+      ctx.fillStyle = '#0A0D12';
+      ctx.fillText(label, x + 5, Math.max(13, y - 5));
+    });
+  }
+
+  let detectionInFlight = false;
+
   async function detectTick(){
-    checkDailyReset();
-    if(camVideo.readyState < 2) return;
+    /* detectAllFaces (especially with descriptors) can easily take longer
+       than DETECTION_INTERVAL_MS on modest kiosk hardware or with several
+       faces in frame. setInterval doesn't wait for the previous call to
+       finish, so without this guard two ticks can run concurrently, both
+       check the same person against `gallery` before either has added them,
+       and both independently decide "new person" — double-counting the same
+       real visitor. Skipping a tick outright while one is still in flight is
+       simpler and safer than letting them race. */
+    if(detectionInFlight) return;
+    detectionInFlight = true;
 
-    const results = await faceapi.detectAllFaces(camVideo, new faceapi.TinyFaceDetectorOptions({ inputSize:224, scoreThreshold:0.5 }))
-      .withFaceLandmarks(true)
-      .withAgeAndGender()
-      .withFaceDescriptors();
+    try{
+      checkDailyReset();
+      if(camVideo.readyState < 2) return;
 
-    const now = Date.now();
+      const results = await faceapi.detectAllFaces(camVideo, new faceapi.TinyFaceDetectorOptions({ inputSize:224, scoreThreshold:0.5 }))
+        .withFaceLandmarks(true)
+        .withAgeAndGender()
+        .withFaceDescriptors();
+
+      drawOverlay(results);
+
+      const now = Date.now();
     const seenIds = new Set();
 
     results.forEach(r=>{
@@ -506,6 +604,9 @@ function slugify(name){
 
     renderFacesPanel();
     updateModeAndTotals();
+    }finally{
+      detectionInFlight = false;
+    }
   }
 
   function renderFacesPanel(){
@@ -521,7 +622,7 @@ function slugify(name){
       const dwell = Math.round((activeState[id].last - activeState[id].start) / 1000);
       const cls = g.isChild ? 'child' : g.gender;
       const label = g.isChild ? 'Child' : (g.gender === 'male' ? 'Male' : 'Female');
-      return `<li><span class="face-tag" style="background:var(--${cls})"></span>${label}<span class="face-meta">${dwell}s</span></li>`;
+      return `<li><span class="face-tag" style="background:var(--${cls})"></span>${label} · ~${Math.round(g.age)}y<span class="face-meta">${dwell}s</span></li>`;
     }).join('');
   }
 
@@ -551,68 +652,100 @@ function slugify(name){
     latestMode = mode;
   }
 
-  /* ──────── MODE / STAGE PLAYBACK ──────── */
-  let currentMode = null;
+  /* ──────── MODE / STAGE PLAYBACK ────────
+     Each mode plays a playlist (contentState[mode] is an array, in upload
+     order), not a single clip. Videos advance on their own 'ended' event
+     (full length, no artificial cutoff); images advance after `duration`
+     seconds (default 8). A single-item playlist naturally loops, since
+     advancing wraps back to index 0 and re-renders/restarts it.
+
+     currentMode starts as 'idle' (not null) so that content already synced
+     via syncPlaylistFromRemote() renders onto the stage immediately — a
+     brand-new kiosk (or any fresh reload) can take several seconds to load
+     the camera/detection models before the first real detectTick() runs, and
+     it shouldn't sit on the placeholder that whole time just because no mode
+     has been "officially" set yet by detection. */
+  let currentMode = 'idle';
+  const playlistIndex = { idle:0, kids:0, adult:0, family:0 };
+  let itemTimer = null;
+  const playerVideo = $('playerVideo'), playerImage = $('playerImage');
+
   function applyMode(mode){
     if(mode === currentMode) return;
     currentMode = mode;
-    const badge = $('modeBadge');
-    badge.className = 'mode-badge mode-' + mode + ' pulse';
-    setTimeout(()=>badge.classList.remove('pulse'), 500);
-    $('modeText').textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+    playlistIndex[mode] = 0;
+    renderStage(mode);
+  }
+
+  function advancePlaylist(mode){
+    if(mode !== currentMode) return; // a stale timer/ended event from a mode we've since left
+    const list = contentState[mode] || [];
+    if(!list.length) return;
+    playlistIndex[mode] = (playlistIndex[mode] + 1) % list.length;
     renderStage(mode);
   }
 
   let lastObjectUrl = null;
   function renderStage(mode){
-    const record = contentState[mode];
-    const videoEl = $('playerVideo'), imgEl = $('playerImage'), placeholder = $('stagePlaceholder');
-    if(!record){
-      videoEl.style.display = 'none';
-      imgEl.style.display = 'none';
+    if(itemTimer){ clearTimeout(itemTimer); itemTimer = null; }
+    const list = contentState[mode] || [];
+    const item = list[playlistIndex[mode]] || null;
+    const placeholder = $('stagePlaceholder');
+    if(!item){
+      playerVideo.style.display = 'none';
+      playerImage.style.display = 'none';
       placeholder.style.display = 'flex';
       return;
     }
     placeholder.style.display = 'none';
     if(lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
-    const objUrl = URL.createObjectURL(record.blob);
+    const objUrl = URL.createObjectURL(item.blob);
     lastObjectUrl = objUrl;
-    if(record.type === 'video'){
-      imgEl.style.display = 'none';
-      videoEl.style.display = 'block';
-      videoEl.src = objUrl;
-      videoEl.play().catch(()=>{});
+    if(item.type === 'video'){
+      playerImage.style.display = 'none';
+      playerVideo.style.display = 'block';
+      playerVideo.src = objUrl;
+      playerVideo.play().catch(()=>{});
+      // advances via the persistent 'ended' listener below
     } else {
-      videoEl.style.display = 'none';
-      imgEl.style.display = 'block';
-      imgEl.src = objUrl;
+      playerVideo.style.display = 'none';
+      playerImage.style.display = 'block';
+      playerImage.src = objUrl;
+      itemTimer = setTimeout(()=> advancePlaylist(mode), (item.duration || 8) * 1000);
     }
   }
 
+  playerVideo.addEventListener('ended', ()=> advancePlaylist(currentMode));
+
   /* ──────── OFFLINE CONTENT CACHE (IndexedDB) ────────
-     Content is fetched once from Firebase Storage and stored as a Blob in
-     IndexedDB, keyed by mode. Playback always reads from this local cache, so
-     the kiosk keeps playing its last-published content even with no network. */
+     Each playlist item is fetched once from Firebase Storage and stored as a
+     Blob in IndexedDB, keyed by its RTDB push id (globally unique across all
+     modes). Playback always reads from this local cache, so the kiosk keeps
+     playing its last-synced playlist even with no network. */
   const DB_NAME = 'scoop-kiosk-cache', STORE = 'content';
   function openCacheDB(){
     return new Promise((resolve, reject)=>{
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath:'mode' });
+      const req = indexedDB.open(DB_NAME, 2);
+      req.onupgradeneeded = (e)=>{
+        const idb = req.result;
+        if(idb.objectStoreNames.contains(STORE)) idb.deleteObjectStore(STORE); // old schema was keyed by `mode`, not `itemId`
+        idb.createObjectStore(STORE, { keyPath:'itemId' });
+      };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
   }
   const cacheDBPromise = openCacheDB();
 
-  async function getCachedContent(mode){
+  async function getAllCached(){
     const idb = await cacheDBPromise;
     return new Promise(resolve=>{
-      const req = idb.transaction(STORE,'readonly').objectStore(STORE).get(mode);
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => resolve(null);
+      const req = idb.transaction(STORE,'readonly').objectStore(STORE).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => resolve([]);
     });
   }
-  async function putCachedContent(record){
+  async function putCachedItem(record){
     const idb = await cacheDBPromise;
     return new Promise((resolve, reject)=>{
       const tx = idb.transaction(STORE,'readwrite');
@@ -621,44 +754,60 @@ function slugify(name){
       tx.onerror = () => reject(tx.error);
     });
   }
-
-  const contentState = {}; // mode -> {mode, blob, type, name, updatedAt}
-
-  function activateContent(mode, record){
-    contentState[mode] = record;
-    if(currentMode === mode) renderStage(mode);
+  async function deleteCachedItem(itemId){
+    const idb = await cacheDBPromise;
+    return new Promise(resolve=>{
+      const tx = idb.transaction(STORE,'readwrite');
+      tx.objectStore(STORE).delete(itemId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
   }
 
-  async function syncContentFromRemote(mode, remote){
-    const cached = await getCachedContent(mode);
-    if(cached && cached.updatedAt === remote.updatedAt){
-      activateContent(mode, cached);
-      return;
+  const contentState = { idle:[], kids:[], adult:[], family:[] }; // mode -> ordered array of {itemId, mode, blob, type, name, duration, updatedAt}
+
+  async function syncPlaylistFromRemote(mode, itemsObj){
+    const entries = Object.entries(itemsObj || {}).sort((a,b)=> a[0].localeCompare(b[0]));
+    const remoteIds = new Set(entries.map(([itemId])=>itemId));
+    const allCached = await getAllCached();
+    const cachedById = new Map(allCached.filter(r=>r.mode===mode).map(r=>[r.itemId, r]));
+
+    const records = [];
+    for(const [itemId, remote] of entries){
+      const cached = cachedById.get(itemId);
+      if(cached && cached.updatedAt === remote.updatedAt){
+        records.push(cached);
+        continue;
+      }
+      try{
+        $('footerNote').textContent = `Downloading ${mode} content…`;
+        const resp = await fetch(remote.url);
+        const blob = await resp.blob();
+        const record = { itemId, mode, blob, type: remote.type, name: remote.name, duration: remote.duration, updatedAt: remote.updatedAt };
+        await putCachedItem(record);
+        records.push(record);
+      }catch(err){
+        if(cached) records.push(cached); // offline — keep serving the last-cached version of this item
+        $('footerNote').textContent = `Offline — using cached ${mode} content.`;
+      }
     }
-    try{
-      $('footerNote').textContent = `Downloading ${mode} content…`;
-      const resp = await fetch(remote.url);
-      const blob = await resp.blob();
-      const record = { mode, blob, type: remote.type, name: remote.name, updatedAt: remote.updatedAt };
-      await putCachedContent(record);
-      activateContent(mode, record);
-      $('footerNote').textContent = `${mode} content updated.`;
-    }catch(err){
-      if(cached) activateContent(mode, cached);
-      $('footerNote').textContent = `Offline — using cached ${mode} content.`;
+
+    // Drop cached items whose RTDB entry was deleted (e.g. removed from the admin playlist)
+    cachedById.forEach((rec, itemId)=>{ if(!remoteIds.has(itemId)) deleteCachedItem(itemId); });
+
+    contentState[mode] = records;
+    if(currentMode === mode){
+      playlistIndex[mode] = Math.min(playlistIndex[mode], Math.max(records.length - 1, 0));
+      renderStage(mode);
     }
   }
 
   onValue(ref(db, 'content'), snap=>{
     const val = snap.val() || {};
-    Object.keys(val).forEach(mode=> syncContentFromRemote(mode, val[mode]));
+    ['idle','kids','adult','family'].forEach(mode=> syncPlaylistFromRemote(mode, val[mode]));
   });
 
   /* ──────── TOPBAR CONTROLS ──────── */
-  $('panelToggleBtn').addEventListener('click', ()=>{
-    const sidebar = $('sidebar');
-    sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none';
-  });
   $('signOutBtn').addEventListener('click', ()=> signOut(auth));
   $('fullscreenBtn').addEventListener('click', ()=>{
     $('app').classList.toggle('kiosk');

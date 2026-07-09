@@ -117,10 +117,12 @@ either the CLI (`firebase deploy --only database,storage`) or a manual console p
   dwellTime                        — rolling average dwell time (seconds) reported by the kiosk
   lastSeen, createdAt              — serverTimestamp()
 
-/content/{mode}          where mode in family|kids|adult|idle
+/content/{mode}/{itemId}   where mode in family|kids|adult|idle — a PLAYLIST, not a single item
   url            — Firebase Storage download URL
   storagePath    — Storage object path (null if the admin published a plain URL instead of a file)
   type: 'video'|'image'
+  duration       — seconds to hold before advancing; only set (and only meaningful) for type:'image' —
+                   videos always advance on their own natural end instead
   name, size, updatedAt
 
 /events/{pushId}          — one entry per NEWLY detected unique person (flat, not nested under screenId,
@@ -141,11 +143,14 @@ run a single `orderByChild('timestamp')` range query across all screens instead 
 
 - Screens table/KPIs/charts are all driven by live `onValue()` listeners — no polling.
 - Connectivity badge in the top bar watches the special `.info/connected` RTDB path.
-- **Content → Content panel** (top bar "🎬 Content" button): each mode (family/kids/adult/idle) has its
-  own file input + URL input + Publish button. Publishing a file uploads it to Storage at
-  `content/{mode}/{timestamp}_{filename}` with a live progress bar, then writes the download URL +
-  metadata to `/content/{mode}`; publishing a URL skips the upload and writes the metadata directly. The
-  previous Storage object for that mode is deleted on replace (best-effort, non-blocking).
+- **Content → Content panel** (top bar "🎬 Content" button): each mode (family/kids/adult/idle) manages a
+  **playlist**. The file input takes multiple files at once (each becomes its own playlist entry); the
+  URL input adds one more entry per click; a per-mode "image duration" number field (default 8s) is
+  stamped onto any image entries added in that click (irrelevant for videos, which just play out).
+  Publishing uploads to Storage at `content/{mode}/{timestamp}_{filename}` with a live progress bar per
+  file, then `push()`es each item under `/content/{mode}`. Playlist order is upload order (RTDB push keys
+  sort chronologically, so no separate `order` field is needed). Each item has its own ✕ button to
+  remove it (best-effort deletes the Storage object too).
 - All 6 charts are computed from real detection data, not simulated:
   - People Per Hour — today's `/events`, bucketed by hour.
   - Adults vs Children, Gender Breakdown — summed from `/screens/*/analytics`.
@@ -162,18 +167,29 @@ pinned to tag `0.22.2` (`justadudewhohacks/face-api.js`) for both the library an
 chosen over a server-side option (e.g. Cloud Vision) because it needs to run continuously on live video
 with no per-frame cost and keep working with no internet connection.
 
-Every `DETECTION_INTERVAL_MS` (700ms) it runs `detectAllFaces().withFaceLandmarks(true)
+Every `DETECTION_INTERVAL_MS` (700ms) a `setInterval` tick runs `detectAllFaces().withFaceLandmarks(true)
 .withAgeAndGender().withFaceDescriptors()` (models: tinyFaceDetector, faceLandmark68TinyNet,
-ageGenderNet, faceRecognitionNet). To avoid **double-counting the same person across ticks**:
+ageGenderNet, faceRecognitionNet), guarded by an `detectionInFlight` flag that skips a tick outright if
+the previous one hasn't finished yet. **This guard matters**: `detectAllFaces` with descriptors can
+easily take longer than 700ms on modest hardware or with several faces in frame, and `setInterval` does
+not wait for the previous call — without the guard, two ticks run concurrently, both check the same real
+person against `gallery` before either has added them, and both decide "new person," double-counting the
+same visitor. To avoid **double-counting the same person across ticks**:
 
 - A session-long `gallery` array holds one entry per unique person `{descriptor, gender, isChild, age,
   firstSeen}`. Each new detection's face descriptor is compared (Euclidean distance) against every
-  gallery entry; a match under `DIST_THRESHOLD` (0.5) is treated as the same person and does not
+  gallery entry; a match under `DIST_THRESHOLD` (0.6 — face-api.js's own recommended same-person cutoff;
+  an earlier, stricter 0.5 caused the same real visitor to be misclassified as "new" whenever their
+  angle/lighting/expression shifted slightly between ticks) is treated as the same person and does not
   increment any counter. A miss creates a new gallery entry (increments total/male/female/children) and
   pushes one row to `/events`.
-- A separate `activeState` map tracks who is *currently* in frame (for the live "Live Audience" panel
-  and dwell timing), with `ABSENCE_GRACE_MS` (4s) tolerance for someone briefly turning away before
+- A separate `activeState` map tracks who is *currently* in frame (for the sidebar's "Detected Audience"
+  panel and dwell timing), with `ABSENCE_GRACE_MS` (4s) tolerance for someone briefly turning away before
   they're considered departed and their dwell duration is logged to `/dwellSamples`.
+- The sensor preview also draws a live bounding box + `GENDER · ~AGEy` label per detected face directly
+  on the camera feed (`drawOverlay()`, on an absolutely-positioned `<canvas>` mirrored to match the
+  mirrored `<video>`), plus decorative corner brackets and an animated scanline — purely cosmetic, no
+  effect on the dedup/counting logic above.
 - Both structures are cleared at local midnight (`checkDailyReset()`), so `/screens/{id}/analytics` and
   the sidebar's "Unique Visitors Today" represent a **daily unique count per screen**, not lifetime —
   this is the standard OOH "unique reach" metric. The same visitor seen at two different screens counts
@@ -183,13 +199,23 @@ ageGenderNet, faceRecognitionNet). To avoid **double-counting the same person ac
 
 These thresholds/constants live at the top of the kiosk's script — tune them there.
 
-### Offline content playback (IndexedDB)
+### Offline content playback (IndexedDB) + playlist advancing
 
-The kiosk never plays directly from a Storage URL. It listens to `/content`, and for each mode whose
-`updatedAt` differs from what's cached, `fetch()`s the file once and stores the **Blob** in IndexedDB
-(`scoop-kiosk-cache` DB, `content` store, keyed by `mode`). Rendering always reads from this local Blob
-cache via `URL.createObjectURL()` — so if the network drops, the kiosk keeps playing the last
-successfully-downloaded file per mode indefinitely. A mode with nothing cached yet shows a placeholder.
+The kiosk never plays directly from a Storage URL. It listens to `/content`, and for each playlist item
+whose `updatedAt` differs from what's cached, `fetch()`s the file once and stores the **Blob** in
+IndexedDB (`scoop-kiosk-cache` DB v2, `content` store, keyed by `itemId` — the RTDB push id, globally
+unique across all modes). `syncPlaylistFromRemote()` also deletes any cached item whose id no longer
+exists remotely (removed from the admin's playlist). Rendering always reads from this local Blob cache
+via `URL.createObjectURL()` — so if the network drops, the kiosk keeps playing the last-synced playlist
+per mode indefinitely. A mode with an empty playlist shows a placeholder.
+
+`contentState[mode]` is the in-memory ordered array (post-cache) for that mode; `playlistIndex[mode]`
+tracks which item is showing. `applyMode()` resets a mode's index to 0 whenever the kiosk actually
+switches into it. Advancing to the next item is driven differently per type: videos have **no `loop`
+attribute** and instead advance via a single persistent `playerVideo` `'ended'` listener (so they always
+play their full length); images advance via a `setTimeout(..., item.duration*1000)` (default 8s) set in
+`renderStage()`. A one-item playlist naturally "loops," since advancing wraps the index back to 0 and
+re-renders/restarts the same item.
 
 ### Presence
 
@@ -268,8 +294,15 @@ There are no lint/test/build commands.
   — keep the two copies identical if you ever change it, since it determines RTDB node identity.
 - Theming (admin only) via CSS custom properties on `:root`, with an `html.light` override block;
   toggle persisted to `localStorage['scoop-theme']`. The kiosk is dark-only by design (public display).
-- Fonts (Space Grotesk / IBM Plex Mono / Inter), Chart.js, and face-api.js are all loaded from CDNs —
-  no local vendoring.
+- Fonts: **DM Sans** for both `--font-display` and `--font-body`, **IBM Plex Mono** for `--font-mono`
+  (data-heavy/tabular bits — timestamps, stats, badges). Icons are **Google Material Symbols Outlined**
+  (`<span class="material-symbols-outlined">icon_name</span>`, ligature-text icon names like `refresh`,
+  `logout`, `fullscreen`) — no raw emoji/unicode glyphs in either app; keep new icons in that family for
+  consistency. Fonts, icons, Chart.js, and face-api.js are all loaded from CDNs — no local vendoring.
+- Both apps are responsive down to phone widths: topbars use `flex-wrap`, the admin's screens table
+  scrolls horizontally inside `.table-scroll` rather than squeezing (it has a `min-width` so columns stay
+  legible), and the kiosk's sidebar collapses from a 320px side column to a capped-height panel below the
+  video stage under 880px. Check new UI at ~375px, ~768px, and desktop widths, not just desktop.
 
 ## Maintenance instruction for Claude
 
