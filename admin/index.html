@@ -398,7 +398,10 @@
 <!-- MODAL: Content Management -->
 <div id="contentModal" class="modal-backdrop">
   <div class="modal" style="max-width:640px;">
-    <h2>Centralized Content Management</h2>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+      <h2>Centralized Content Management</h2>
+      <button class="btn" id="republishAllBtn" title="Force every screen (including newly-added ones that missed the original sync) to re-download all published content"><span class="material-symbols-outlined">sync</span> Republish All</button>
+    </div>
     <p style="font-size:12.5px;color:var(--text-mid);margin-bottom:16px;">Each mode plays a playlist, not a single clip — select multiple files (or add one URL at a time) and they queue up. Videos play their full length before advancing; images hold for the configured number of seconds. Screens cache everything to Storage so playback keeps working offline.</p>
 
     <div style="display:flex;flex-direction:column;gap:18px;">
@@ -789,6 +792,42 @@ function slugify(name){
       await remove(ref(db, `content/${mode}/${itemId}`));
       if(item.storagePath) deleteObject(storageRef(storage, item.storagePath)).catch(()=>{});
     });
+  });
+
+  /* "Republish All": bumps every playlist item's updatedAt without touching
+     its url/type/etc. Every kiosk's /content listener fires on the change
+     and re-fetches anything whose updatedAt no longer matches what it has
+     cached — including a newly-added screen that, for whatever reason
+     (missed the initial sync, a corrupted partial download, a CORS/network
+     hiccup at the time), never got the content in the first place. */
+  $('republishAllBtn').addEventListener('click', async ()=>{
+    const modes = ['family','kids','adult','idle'];
+    const updates = {};
+    let count = 0;
+    modes.forEach(mode=>{
+      Object.keys(contentMeta[mode] || {}).forEach(itemId=>{
+        updates[`content/${mode}/${itemId}/updatedAt`] = Date.now();
+        count++;
+      });
+    });
+    if(!count){ alert('No published content to republish yet.'); return; }
+    if(!confirm(`Republish all ${count} item(s) across every mode? Every screen will re-download them.`)) return;
+
+    try{ await authReady; }catch(e){ alert('Not signed in to Firebase yet — try again in a moment.'); return; }
+
+    const btn = $('republishAllBtn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined">hourglass_top</span> Republishing…';
+    try{
+      await update(ref(db), updates);
+      alert(`Republished ${count} item(s). Screens will pick them up shortly.`);
+    }catch(err){
+      alert('Republish failed: ' + err.message);
+    }finally{
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
   });
 
   document.querySelectorAll('.content-publish').forEach(btn=>{

@@ -150,7 +150,11 @@ run a single `orderByChild('timestamp')` range query across all screens instead 
   Publishing uploads to Storage at `content/{mode}/{timestamp}_{filename}` with a live progress bar per
   file, then `push()`es each item under `/content/{mode}`. Playlist order is upload order (RTDB push keys
   sort chronologically, so no separate `order` field is needed). Each item has its own ✕ button to
-  remove it (best-effort deletes the Storage object too).
+  remove it (best-effort deletes the Storage object too). A top-of-modal **"Republish All"** button
+  bumps every item's `updatedAt` (via one multi-path `update()`, nothing else about the item changes) —
+  every kiosk's `/content` listener treats that as a change and re-fetches, which is the fix for a screen
+  that never got the content in the first place (missed the initial sync, a corrupted partial download,
+  a transient CORS/network hiccup) without having to re-upload anything.
 - All 6 charts are computed from real detection data, not simulated:
   - People Per Hour — today's `/events`, bucketed by hour.
   - Adults vs Children, Gender Breakdown — summed from `/screens/*/analytics`.
