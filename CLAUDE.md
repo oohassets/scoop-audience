@@ -143,7 +143,7 @@ run a single `orderByChild('timestamp')` range query across all screens instead 
 
 - Screens table/KPIs/charts are all driven by live `onValue()` listeners — no polling.
 - Connectivity badge in the top bar watches the special `.info/connected` RTDB path.
-- **Content → Content panel** (top bar "🎬 Content" button): each mode (family/kids/adult/idle) manages a
+- **Content → Content panel** (top bar "Content" button): each mode (family/kids/adult/idle) manages a
   **playlist**. The file input takes multiple files at once (each becomes its own playlist entry); the
   URL input adds one more entry per click; a per-mode "image duration" number field (default 8s) is
   stamped onto any image entries added in that click (irrelevant for videos, which just play out).
@@ -157,6 +157,24 @@ run a single `orderByChild('timestamp')` range query across all screens instead 
   - Unique Visitors (7 Days) — `/events` bucketed by date.
   - Dwell Time Distribution — `/dwellSamples` bucketed into `<5s / 5-10s / 10-30s / 30-60s / >60s`.
   - Campaign Impressions — top 5 screens by unique total.
+- **CSV/JSON exports** dump the live `screens` snapshot (current cumulative counters) — unlike the
+  Report below, they are not date-range filtered.
+- **Report export** is the odd one out: unlike everything else on the dashboard (which reads the live
+  `screens` cumulative counters or a fixed rolling window), it's driven by the "Report range"
+  `datetime-local` pair next to the export buttons (defaults to the last 24h) and does a one-off `get()`
+  query — not `onValue()` — against `/events` and `/dwellSamples` bounded by `orderByChild('timestamp')
+  .startAt(fromMs).endAt(toMs)`, then aggregates totals, a per-screen breakdown, and a trend bucketed by
+  hour (ranges ≲26h) or by day (longer ranges) entirely from that filtered log. It renders 4 real Chart.js
+  charts **off-screen** (`renderChartToImage()` — a detached canvas, `animation:false`, captured via
+  `canvas.toDataURL()` after a double-`requestAnimationFrame` wait so the paint has actually happened) and
+  embeds them as `<img>`s in the exported HTML, rather than shipping Chart.js + live data into the
+  downloaded file — this makes the report print/PDF reliably (rasterized charts behave predictably in
+  print output; live canvases often don't) and keeps it viewable fully offline. The exported HTML has its
+  own `@page{size:A4;margin:0.5in;}` rule and a "Print / Save as PDF" button (`window.print()`) baked in —
+  that's the actual HTML→PDF conversion path: the browser's native print-to-PDF renderer, which keeps all
+  table/heading text fully vector-crisp and only rasterizes the chart images (at 1000×460px per chart,
+  a deliberate quality/file-size tradeoff — bump `CW`/`CH` in `renderChartToImage()` calls if you want
+  sharper images at the cost of a larger downloaded file).
 
 ## Kiosk (`kiosk/index.html`)
 
