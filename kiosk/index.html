@@ -121,10 +121,43 @@
   .modal-actions{display:flex;gap:8px;justify-content:flex-end;}
   .modal-actions button{padding:7px 14px;border-radius:7px;font-size:12.5px;font-weight:500;border:1px solid var(--border-hi);background:transparent;color:var(--text-mid);}
   .modal-actions button.save{background:var(--accent);color:#06080B;border:none;font-weight:600;}
+
+  .login-screen{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:var(--bg);}
+  .login-card{width:90%;max-width:340px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px 28px;}
+  .login-card .brand{justify-content:center;margin-bottom:22px;font-size:15px;}
+  .login-field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+  .login-field label{font-size:12.5px;color:var(--text-mid);font-weight:500;}
+  .login-field input{background:var(--surface-2);border:1px solid var(--border-hi);border-radius:6px;color:var(--text-hi);padding:9px 12px;font-size:13px;font-family:var(--font-mono);}
+  .login-field input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .login-error{display:none;font-family:var(--font-mono);font-size:11.5px;color:var(--offline);background:rgba(255,92,114,.1);border:1px solid rgba(255,92,114,.25);border-radius:6px;padding:8px 10px;margin-bottom:14px;}
+  .login-error.show{display:block;}
+  .login-submit{width:100%;padding:10px;border-radius:7px;font-size:13px;font-weight:600;border:1px solid rgba(79,230,199,.4);background:var(--accent-dim);color:var(--accent);margin-top:6px;}
+  .login-submit:hover{background:rgba(79,230,199,.2);border-color:var(--accent);}
+  .login-submit:disabled{opacity:.6;cursor:default;}
 </style>
 </head>
 <body>
-<div id="app">
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="brand"><span class="brand-dot"></span>SCOOP AUDIENCE<span class="brand-sep">/</span><span class="brand-sub">Kiosk</span></div>
+    <form id="loginForm">
+      <div class="login-error" id="loginError"></div>
+      <div class="login-field">
+        <label>Email</label>
+        <input type="email" id="loginEmail" autocomplete="username" required>
+      </div>
+      <div class="login-field">
+        <label>Password</label>
+        <input type="password" id="loginPassword" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="login-submit" id="loginSubmit">Sign In</button>
+    </form>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
   <header class="topbar">
     <div class="brand"><span class="brand-dot"></span>SCOOP AUDIENCE<span class="brand-sep">/</span><span class="brand-sub">Kiosk</span></div>
     <span class="conn-badge" id="connBadge"><span class="dot"></span><span id="connText">Connecting…</span></span>
@@ -133,6 +166,7 @@
       <button class="ghost-btn toggleable" id="screenNameBtn">Screen: <span id="screenNameLabel">—</span></button>
       <button class="ghost-btn toggleable" id="panelToggleBtn">Panel</button>
       <button class="ghost-btn" id="fullscreenBtn">⛶ Kiosk Mode</button>
+      <button class="ghost-btn toggleable" id="signOutBtn">Sign Out</button>
     </div>
   </header>
 
@@ -189,7 +223,9 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/fireba
 import {
   getDatabase, ref, set, update, remove, onValue, push, onDisconnect, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-database.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAVLX6zieKlURkzzxpoOFRCsre5xwIW78U",
@@ -205,19 +241,50 @@ const fbApp = initializeApp(firebaseConfig);
 const db = getDatabase(fbApp);
 const auth = getAuth(fbApp);
 
-/* Anonymous auth so RTDB security rules can require `auth != null` instead of
-   leaving the project fully open. If this rejects, the Anonymous provider
-   probably isn't enabled yet in Firebase Console → Authentication → Sign-in method. */
+/* The kiosk logs in the same way the admin does — real email/password auth
+   (a user created in Firebase Console → Authentication → Users) — rather
+   than anonymous auth. Anonymous sign-in kept failing with
+   `auth/admin-restricted-operation` on this project (blocked at the
+   project/org level), so this sidesteps that entirely. Firebase Auth
+   persists the session locally by default, so this only needs to happen
+   once per physical device — not on every reboot. All kiosk screens can
+   share one account, or each can have its own; either works. */
 let authOk = false;
-const authReady = signInAnonymously(auth).then(()=>{ authOk = true; }).catch(err=>{
-  console.error('Firebase anonymous sign-in failed:', err);
-  const badge = document.getElementById('connBadge');
-  badge.classList.remove('live');
-  badge.classList.add('offline');
-  document.getElementById('connText').textContent = 'Auth error: ' + err.code;
-  document.getElementById('footerNote').textContent =
-    'Sign-in failed (' + err.code + ') — enable "Anonymous" under Firebase Console → Authentication → Sign-in method.';
-  throw err;
+let resolveAuthReady;
+const authReady = new Promise(res=>{ resolveAuthReady = res; });
+
+onAuthStateChanged(auth, user=>{
+  authOk = !!user;
+  if(user){
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    resolveAuthReady();
+  } else {
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'flex';
+  }
+});
+
+document.getElementById('loginForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+  const submitBtn = document.getElementById('loginSubmit');
+  errorEl.classList.remove('show');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Signing in…';
+  try{
+    await signInWithEmailAndPassword(auth, email, password);
+  }catch(err){
+    errorEl.textContent = err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found'
+      ? 'Incorrect email or password.'
+      : 'Sign-in failed: ' + err.message;
+    errorEl.classList.add('show');
+  }finally{
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Sign In';
+  }
 });
 
 if('serviceWorker' in navigator){
@@ -592,6 +659,7 @@ function slugify(name){
     const sidebar = $('sidebar');
     sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none';
   });
+  $('signOutBtn').addEventListener('click', ()=> signOut(auth));
   $('fullscreenBtn').addEventListener('click', ()=>{
     $('app').classList.toggle('kiosk');
     if(!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(()=>{});

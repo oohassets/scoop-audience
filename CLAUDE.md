@@ -61,10 +61,8 @@ Firebase JS SDK version pinned to `10.13.2` via `https://www.gstatic.com/firebas
 
 None of these are fixable by editing code — they're Firebase/GCP project configuration, done once:
 
-1. **Enable the Anonymous provider** — Console → Authentication → Sign-in method → Anonymous → Enable.
-   Without it, kiosk sign-in fails with `auth/admin-restricted-operation` (surfaced on-screen in the
-   kiosk's connectivity badge/footer, not just devtools, since no one's there to open devtools on a
-   public display).
+1. **Create at least one Email/Password user** — Console → Authentication → Users → Add user. Both
+   admin and kiosk log in with this (see Auth & security rules below); there's no self-service signup.
 2. **Add every domain this is hosted on to Authorized domains** — Console → Authentication → Settings →
    Authorized domains (e.g. `oohassets.github.io`; `localhost` and `*.web.app`/`*.firebaseapp.com` are
    authorized by default). Missing this → `auth/unauthorized-domain`.
@@ -86,24 +84,27 @@ None of these are fixable by editing code — they're Firebase/GCP project confi
 
 ### Auth & security rules
 
-Two different auth models, both satisfying the same `auth != null` RTDB/Storage rules:
+Both `admin/index.html` and `kiosk/index.html` are gated behind an identical real **login screen**
+(`signInWithEmailAndPassword`) — nothing in `#app`/`#appShell` renders until `onAuthStateChanged` fires
+with a user. There is no self-service signup; accounts are created manually in Console → Authentication
+→ Users. Both have a "Sign Out" button that calls `signOut(auth)` (on the kiosk it's tagged `toggleable`
+so it also hides in true fullscreen kiosk mode along with the screen-name/panel buttons).
 
-- **Admin (`admin/index.html`)** is gated behind a real **login screen** (`signInWithEmailAndPassword`)
-  — nothing in `#appShell` renders until `onAuthStateChanged` fires with a user. There is no self-service
-  signup; operator accounts are created manually in Console → Authentication → Users. A "Sign Out" button
-  in the top bar calls `signOut(auth)`.
-- **Kiosk (`kiosk/index.html`)** signs in with **anonymous auth** (`signInAnonymously`) on load instead —
-  it's an unattended public display with no one there to type a password.
+The kiosk originally used **anonymous auth** (`signInAnonymously`) instead, since it's an unattended
+public display with no one there to type a password — but this particular Firebase/GCP project
+consistently rejects anonymous sign-in with `auth/admin-restricted-operation` (some project/org-level
+restriction on anonymous account creation that wasn't worth chasing further), so it now uses the same
+email/password login as admin instead. Firebase Auth persists the session in the browser by default, so
+each physical screen only needs to be logged in **once** during setup (via the on-screen login form,
+same as a human would use), not on every reboot — all kiosk screens can share one account, or each can
+have its own.
 
-In both files, every RTDB/Storage write awaits an `authReady` promise first (resolved on successful
-sign-in) so writes don't race the auth handshake. `firebase/database.rules.json` and
+In both files, every RTDB/Storage write awaits an `authReady` promise first (resolved once
+`onAuthStateChanged` reports a signed-in user) so writes don't race the auth handshake. `firebase/database.rules.json` and
 `firebase/storage.rules` are the source of truth for the rules and must be pasted into the Firebase
 Console (Realtime Database → Rules, and Storage → Rules) — `firebase.json` references them for the
 Firebase CLI, but no CLI project alias (`.firebaserc`) is set up yet, so deploying them still requires
-either the CLI (`firebase deploy --only database,storage`) or a manual console paste. For the kiosk's
-anonymous auth to work, the **Anonymous** provider must also be enabled in Console → Authentication →
-Sign-in method; if it isn't, `signInAnonymously` rejects and every kiosk RTDB/Storage write fails with a
-permission error (surfaced to `console.error`).
+either the CLI (`firebase deploy --only database,storage`) or a manual console paste.
 
 ## Realtime Database schema
 
